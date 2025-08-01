@@ -1,0 +1,17 @@
+# Terraform files
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+terraform/terraform.tfplan
+terraform/terraform.tfplan.json
+
+# Terraform variables with sensitive data
+terraform/terraform.tfvars.local
+terraform/*.auto.tfvars
+
+# Override files
+terraform/override.tf
+terraform/override.tf.json
+terraform/*_override.tf
+terraform/*_override.tf.json

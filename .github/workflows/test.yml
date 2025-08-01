@@ -1,0 +1,54 @@
+name: 🧪 Test Application
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master ]
+  workflow_call:
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '16'
+        
+    - name: Downgrade npm to compatible version
+      run: npm install -g npm@7.24.2
+
+    - name: Install dependencies
+      run: |
+        # Remove lock file to start fresh
+        rm -f package-lock.json
+        # Install dependencies with legacy peer deps to handle conflicts
+        npm install --legacy-peer-deps
+        # Force install specific compatible versions
+        npm install typescript@4.4.4 @types/node@14.18.63 @types/express@4.17.13 @types/babel__traverse@7.11.1 --save-dev --legacy-peer-deps
+        # Apply patches to fix TypeScript compatibility
+        npm run patch-babel-types || true
+        # Check for security issues but don't fail the build
+        npm audit --audit-level=high || echo "Security issues found but continuing..."
+
+    - name: Run linting
+      run: npm run lint
+
+    - name: Run unit tests
+      run: npm run test
+
+    - name: Run test coverage
+      run: npm run test:cov
+
+    - name: Build application
+      run: npm run build
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      if: always()

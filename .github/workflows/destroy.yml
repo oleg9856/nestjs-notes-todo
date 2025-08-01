@@ -1,0 +1,88 @@
+name: 🧨 Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  confirm:
+    name: 🔒 Confirm Destruction
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Validate confirmation
+      run: |
+        if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+          echo "❌ Confirmation failed. You must type exactly 'DESTROY' to proceed."
+          exit 1
+        fi
+        echo "✅ Confirmation validated. Proceeding with destruction..."
+
+  destroy:
+    name: 🧨 Destroy Infrastructure
+    needs: confirm
+    uses: ./.github/workflows/terraform.yml
+    with:
+      terraform_action: destroy
+      image_tag: latest
+    secrets:
+      DATABASE_URI: ${{ secrets.DATABASE_URI }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  cleanup:
+    name: 🧹 Cleanup ECR Images
+    needs: destroy
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Delete ECR images
+      run: |
+        echo "🧹 Cleaning up ECR repository..."
+        aws ecr batch-delete-image \
+          --repository-name nestjs-notes-todo \
+          --image-ids imageTag=latest \
+          --region ${{ env.AWS_REGION }} || echo "No latest tag found"
+        
+        # Delete all images in repository
+        IMAGE_TAGS=$(aws ecr list-images \
+          --repository-name nestjs-notes-todo \
+          --query 'imageIds[].imageTag' \
+          --output text \
+          --region ${{ env.AWS_REGION }} || echo "")
+        
+        if [ ! -z "$IMAGE_TAGS" ]; then
+          for tag in $IMAGE_TAGS; do
+            aws ecr batch-delete-image \
+              --repository-name nestjs-notes-todo \
+              --image-ids imageTag=$tag \
+              --region ${{ env.AWS_REGION }}
+          done
+        fi
+        
+        echo "✅ ECR cleanup completed"
+
+    - name: Summary
+      run: |
+        echo "## 🧨 Infrastructure Destroyed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ✅ Cleanup Complete:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Terraform resources**: Destroyed" >> $GITHUB_STEP_SUMMARY
+        echo "- **ECR images**: Cleaned up" >> $GITHUB_STEP_SUMMARY
+        echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "⚠️ **Note**: This action is irreversible!" >> $GITHUB_STEP_SUMMARY

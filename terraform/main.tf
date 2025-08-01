@@ -1,4 +1,7 @@
+# Main Terraform configuration for NestJS Notes Todo app
+
 terraform {
+  required_version = ">= 1.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -9,6 +12,11 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+}
+
+# Data sources
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
 # ECR Repository для Docker образу
@@ -155,7 +163,7 @@ resource "aws_lb_target_group" "app" {
     healthy_threshold   = "3"
     interval            = "30"
     matcher             = "200"
-    path                = "/api/v1"
+    path                = var.health_check_path
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = "5"
@@ -169,25 +177,6 @@ resource "aws_lb_listener" "web" {
   protocol          = "HTTP"
 
   default_action {
-    type = "redirect"
-
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
-  }
-}
-
-# HTTPS Listener
-resource "aws_lb_listener" "web_https" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "443"
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
-  certificate_arn   = aws_acm_certificate_validation.main.certificate_arn
-
-  default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
   }
@@ -199,8 +188,8 @@ resource "aws_ecs_task_definition" "app" {
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = 256
-  memory                   = 512
+  cpu                      = var.cpu
+  memory                   = var.memory
 
   container_definitions = jsonencode([
     {
@@ -209,19 +198,19 @@ resource "aws_ecs_task_definition" "app" {
       
       portMappings = [
         {
-          containerPort = 3000
-          hostPort      = 3000
+          containerPort = var.app_port
+          hostPort      = var.app_port
         }
       ]
       
       environment = [
         {
           name  = "NODE_ENV"
-          value = "production"
+          value = var.environment
         },
         {
           name  = "PORT"
-          value = "3000"
+          value = tostring(var.app_port)
         },
         {
           name  = "DATABASE_URI"
@@ -246,7 +235,7 @@ resource "aws_ecs_service" "main" {
   name            = "nestjs-notes-service"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = 1
+  desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -258,10 +247,10 @@ resource "aws_ecs_service" "main" {
   load_balancer {
     target_group_arn = aws_lb_target_group.app.arn
     container_name   = "nestjs-notes"
-    container_port   = 3000
+    container_port   = var.app_port
   }
 
-  depends_on = [aws_lb_listener.web, aws_lb_listener.web_https]
+  depends_on = [aws_lb_listener.web]
 }
 
 # CloudWatch Log Group
@@ -291,84 +280,4 @@ resource "aws_iam_role" "ecs_task_execution_role" {
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-# Route 53 Hosted Zone
-resource "aws_route53_zone" "main" {
-  name = var.domain_name
-
-  tags = {
-    Name = "nestjs-notes-zone"
-  }
-}
-
-# ACM Certificate
-resource "aws_acm_certificate" "main" {
-  domain_name       = var.domain_name
-  validation_method = "DNS"
-
-  subject_alternative_names = [
-    "*.${var.domain_name}"
-  ]
-
-  lifecycle {
-    create_before_destroy = true
-  }
-
-  tags = {
-    Name = "nestjs-notes-cert"
-  }
-}
-
-# Certificate validation
-resource "aws_route53_record" "cert_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.main.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
-
-  allow_overwrite = true
-  name            = each.value.name
-  records         = [each.value.record]
-  ttl             = 60
-  type            = each.value.type
-  zone_id         = aws_route53_zone.main.zone_id
-}
-
-resource "aws_acm_certificate_validation" "main" {
-  certificate_arn         = aws_acm_certificate.main.arn
-  validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
-}
-
-# Route 53 record для ALB
-resource "aws_route53_record" "main" {
-  zone_id = aws_route53_zone.main.zone_id
-  name    = var.domain_name
-  type    = "A"
-
-  alias {
-    name                   = aws_lb.main.dns_name
-    zone_id                = aws_lb.main.zone_id
-    evaluate_target_health = true
-  }
-}
-
-# Route 53 record для www subdomain
-resource "aws_route53_record" "www" {
-  zone_id = aws_route53_zone.main.zone_id
-  name    = "www.${var.domain_name}"
-  type    = "A"
-
-  alias {
-    name                   = aws_lb.main.dns_name
-    zone_id                = aws_lb.main.zone_id
-    evaluate_target_health = true
-  }
-}
-
-data "aws_availability_zones" "available" {
-  state = "available"
 }
