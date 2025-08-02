@@ -3,6 +3,10 @@ resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/${var.app_name}"
   retention_in_days = 14
 
+  lifecycle {
+    ignore_changes = [name]
+  }
+
   tags = {
     Name = "${var.app_name}-logs"
   }
@@ -43,6 +47,10 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.app_name}-ecs-task-execution-role"
 
+  lifecycle {
+    ignore_changes = [name]
+  }
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -69,6 +77,10 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
 # ECS Task Role
 resource "aws_iam_role" "ecs_task_role" {
   name = "${var.app_name}-ecs-task-role"
+
+  lifecycle {
+    ignore_changes = [name]
+  }
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
