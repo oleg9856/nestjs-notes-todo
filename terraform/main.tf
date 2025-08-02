@@ -194,7 +194,7 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name  = "nestjs-notes"
-      image = "${aws_ecr_repository.nestjs_app.repository_url}:latest"
+      image = "${aws_ecr_repository.nestjs_app.repository_url}:${var.image_tag}"
       
       portMappings = [
         {

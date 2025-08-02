@@ -2,7 +2,7 @@ name: 🔍 PR Preview
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   test-and-build:
@@ -22,15 +22,7 @@ jobs:
       run: npm install -g npm@7.24.2
 
     - name: Install dependencies
-      run: |
-        # Remove lock file to start fresh
-        rm -f package-lock.json
-        # Install dependencies with legacy peer deps to handle conflicts
-        npm install --legacy-peer-deps
-        # Force install specific compatible versions
-        npm install typescript@4.4.4 @types/node@14.18.63 @types/express@4.17.13 @types/babel__traverse@7.11.1 --save-dev --legacy-peer-deps
-        # Apply patches to fix TypeScript compatibility
-        npm run patch-babel-types || true
+      run: npm ci
 
     - name: Run tests
       run: npm run test
@@ -40,7 +32,7 @@ jobs:
 
     - name: Build Docker image (local only)
       run: |
-        docker build --target production -t nestjs-notes-todo:pr-${{ github.event.number }} .
+        docker build -t nestjs-notes-todo:pr-${{ github.event.number }} .
 
     - name: Comment PR
       uses: actions/github-script@v7
