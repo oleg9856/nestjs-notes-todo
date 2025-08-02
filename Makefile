@@ -68,3 +68,6 @@ docker-logs:
 
 docker-stop:
 	docker-compose down
+
+create-repo-aws:
+	aws ecr create-repository --repository-name nestjs-notes-todo --region us-east-1
