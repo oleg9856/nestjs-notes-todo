@@ -1,10 +1,17 @@
 name: 🚀 Deploy to AWS
 
 on:
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: 'Type "DEPLOY" to confirm'
+        required: true
+        type: string
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+    
 
 env:
   AWS_REGION: us-east-1
