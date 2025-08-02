@@ -1,6 +1,11 @@
-# Use an existing CloudWatch Log Group
-data "aws_cloudwatch_log_group" "app" {
-  name = "/ecs/${var.app_name}"
+# Create CloudWatch Log Group
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/ecs/${var.app_name}"
+  retention_in_days = 7
+
+  tags = {
+    Name = "${var.app_name}-log-group"
+  }
 }
 
 # ECS Cluster
@@ -34,9 +39,26 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   }
 }
 
-# Use an existing IAM role
-data "aws_iam_role" "ecs_task_execution_role" {
+# ECS Task Execution Role
+resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.app_name}-ecs-task-execution-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.app_name}-ecs-task-execution-role"
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
@@ -44,9 +66,26 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Use an existing IAM role
-data "aws_iam_role" "ecs_task_role" {
+# ECS Task Role
+resource "aws_iam_role" "ecs_task_role" {
   name = "${var.app_name}-ecs-task-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.app_name}-ecs-task-role"
+  }
 }
 
 # ECS Task Definition
@@ -57,13 +96,13 @@ resource "aws_ecs_task_definition" "app" {
   cpu                      = var.cpu
   memory                   = var.memory
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn           = aws_iam_role.ecs_task_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
       name  = var.app_name
       image = "${aws_ecr_repository.app.repository_url}:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = var.app_port
@@ -71,7 +110,7 @@ resource "aws_ecs_task_definition" "app" {
           protocol      = "tcp"
         }
       ]
-      
+
       environment = [
         {
           name  = "NODE_ENV"
@@ -86,7 +125,7 @@ resource "aws_ecs_task_definition" "app" {
           value = var.database_uri
         }
       ]
-      
+
       healthCheck = {
         command = [
           "CMD-SHELL",
@@ -97,7 +136,7 @@ resource "aws_ecs_task_definition" "app" {
         retries     = 3
         startPeriod = 60
       }
-      
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -106,7 +145,7 @@ resource "aws_ecs_task_definition" "app" {
           "awslogs-stream-prefix" = "ecs"
         }
       }
-      
+
       essential = true
     }
   ])

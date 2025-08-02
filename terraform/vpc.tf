@@ -1,8 +1,11 @@
-# Use an existing VPC
-data "aws_vpc" "main" {
-  filter {
-    name   = "tag:Name"
-    values = ["${var.app_name}-vpc"]
+# Create a new VPC
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name = "${var.app_name}-vpc"
   }
 }
 
@@ -72,7 +75,7 @@ resource "aws_route_table_association" "public" {
 resource "aws_eip" "nat" {
   count = length(aws_subnet.public)
 
-  domain = "vpc"
+  domain     = "vpc"
   depends_on = [aws_internet_gateway.main]
 
   tags = {
