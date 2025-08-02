@@ -11,6 +11,10 @@ resource "aws_ecr_repository" "app" {
   tags = {
     Name = var.app_name
   }
+
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 # ECR Repository Policy

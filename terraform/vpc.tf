@@ -70,6 +70,8 @@ resource "aws_route_table_association" "public" {
 }
 
 # NAT Gateways for Private Subnets
+# Note: Ensure you have enough Elastic IPs available in your AWS account.
+# If you encounter AddressLimitExceeded, consider increasing the limit or using NAT Gateway without EIP.
 resource "aws_eip" "nat" {
   count = length(aws_subnet.public)
 
