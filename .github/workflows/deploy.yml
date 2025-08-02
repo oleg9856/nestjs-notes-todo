@@ -59,6 +59,10 @@ jobs:
         terraform_version: 1.5.0
 
     - name: Apply Terraform changes
+      working-directory: ./terraform
+      env:
+        TF_VAR_database_uri: ${{secrets.DATABASE_URI}}
       run: |
         terraform init
+        terraform plan
         terraform apply
