@@ -1,15 +1,8 @@
-# VPC Configuration
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
-  lifecycle {
-    ignore_changes = [cidr_block]
-  }
-
-  tags = {
-    Name = "${var.app_name}-vpc"
+# Use an existing VPC
+data "aws_vpc" "main" {
+  filter {
+    name   = "tag:Name"
+    values = ["${var.app_name}-vpc"]
   }
 }
 
